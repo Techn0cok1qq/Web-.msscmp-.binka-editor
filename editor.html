@@ -80,13 +80,11 @@ function build(){
   var rd=new FileReader();rd.onload=function(){
    var u8=new Uint8Array(rd.result);msg.textContent='';
    if(String.fromCharCode(u8[0],u8[1],u8[2],u8[3])!=='1FCB'){msg.textContent='1FCB形式の.binkaではありません';return}
-   var t=patchBank(bank,items,[{idx:cur,data:u8}]);
-   if(t.errors.length){msg.textContent=t.errors[0];return}
    try{decodeBinka(u8.slice().buffer)}catch(e){msg.textContent='デコードできません: '+e.message;return}
    reps[cur]=u8;playBytes(u8,items[cur].name+'（差し替え後）');render();refreshSel()};
   rd.readAsArrayBuffer(f)});
  exp.addEventListener('click',function(){
-  var arr=Object.keys(reps).map(function(k){return{idx:+k,data:reps[k]}}),r=patchBank(bank,items,arr);
+  var r;try{var arr=Object.keys(reps).map(function(k){return{idx:+k,data:reps[k]}});r=patchBank(bank,items,arr)}catch(e){msg.textContent='書き出しに失敗: '+e.message;return}
   if(r.errors.length){msg.textContent=r.errors.join(' / ');return}
   var u=URL.createObjectURL(new Blob([r.buf])),a=document.createElement('a');
   a.href=u;a.download=bankName.replace(/\.msscmp$/i,'')+'_edited.msscmp';document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u)},5000)});
