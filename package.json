@@ -1,0 +1,10 @@
+{
+  "name": "binka-web",
+  "version": "1.0.0",
+  "description": "Browser-based player and entry replacer for Bink Audio (.binka) and Miles Sound System banks (.msscmp)",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "verify": "node test/verify.js"
+  }
+}

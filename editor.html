@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>.msscmp エディタ</title>
+<style>
+:root{--bg:#f6f7f9;--fg:#1b1f24;--card:#fff;--line:#d5d9df;--accent:#2f6fed;--mut:#667085;--ok:#1a9b4b;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14161a;--fg:#e8eaed;--card:#1e2126;--line:#353a42;--accent:#6c9bff;--mut:#9aa3af;--ok:#4cc77b}}
+:root[data-theme="dark"]{--bg:#14161a;--fg:#e8eaed;--card:#1e2126;--line:#353a42;--accent:#6c9bff;--mut:#9aa3af;--ok:#4cc77b}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+main{max-width:680px;margin:0 auto;padding:16px}
+h1{font-size:20px;margin:0 0 4px}p.sub{color:var(--mut);margin:0 0 14px;font-size:13px}
+#drop{display:block;border:2px dashed var(--line);border-radius:14px;background:var(--card);padding:26px 16px;text-align:center;cursor:pointer}
+#drop.over{border-color:var(--accent)}#drop b{display:block;font-size:16px}#drop span{color:var(--mut);font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:12px}
+#player{position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
+audio{width:100%;margin-top:6px}
+input[type=search]{width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--fg);font-size:16px}
+#list{margin-top:8px;max-height:50vh;overflow-y:auto}
+.it{display:flex;gap:8px;align-items:center;padding:8px 4px;border-bottom:1px solid var(--line);cursor:pointer}
+.it.on{background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.it .n{flex:1;word-break:break-all;font-size:14px}.it .s{color:var(--mut);font-size:12px;white-space:nowrap}
+.rp{color:var(--ok);font-weight:600}
+button,label.btn{display:inline-block;margin:6px 6px 0 0;padding:8px 12px;border-radius:8px;border:0;background:var(--accent);color:#fff;font-size:14px;cursor:pointer}
+button.sec,label.sec{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+button:disabled{opacity:.4}
+.mut{color:var(--mut);font-size:13px}.err{color:#d93025;font-size:13px}
+</style></head><body><main>
+<h1>🛠 .msscmp エディタ</h1>
+<p class="sub">バンク内の.binkaを別の.binkaに差し替えて、.msscmpを書き出します。すべてブラウザ内で処理します。</p>
+<label id="drop"><b>ここに .msscmp をドロップ</b><span>またはタップして選択（リトルエンディアン形式 "KNAB"）</span><input id="file" type="file" hidden></label>
+<div id="out"></div>
+</main>
+<script src="js/binka.js"></script>
+<script src="js/msscmp.js"></script>
+<script>
+(function(){
+var drop=document.getElementById('drop'),inp=document.getElementById('file'),out=document.getElementById('out');
+var url=null,bank=null,bankName='',items=[],reps={},cur=-1,audio,info,list,q,cnt,rinfo,exp,msg;
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function fmt(s){var m=Math.floor(s/60);return m+':'+(s-m*60).toFixed(1).padStart(4,'0')}
+function wav(r){
+ var n=r.length,ch=r.channels,len=n*ch*2,b=new ArrayBuffer(44+len),v=new DataView(b);
+ function s(o,t){for(var i=0;i<t.length;i++)v.setUint8(o+i,t.charCodeAt(i))}
+ s(0,'RIFF');v.setUint32(4,36+len,true);s(8,'WAVEfmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);
+ v.setUint16(22,ch,true);v.setUint32(24,r.sampleRate,true);v.setUint32(28,r.sampleRate*ch*2,true);v.setUint16(32,ch*2,true);v.setUint16(34,16,true);
+ s(36,'data');v.setUint32(40,len,true);
+ var o=44;for(var i=0;i<n;i++)for(var c=0;c<ch;c++){var x=Math.max(-1,Math.min(1,r.data[c][i]));v.setInt16(o,x<0?x*32768:x*32767,true);o+=2}
+ return new Blob([b],{type:'audio/wav'})}
+function bytesOf(i){return reps[i]?reps[i]:new Uint8Array(bank,items[i].off,items[i].size)}
+function cap(i){var s=items.map(function(x){return x.off}).sort(function(a,b){return a-b}),nx=s[s.indexOf(items[i].off)+1];return nx===undefined?null:nx-items[i].off}
+function playBytes(u8,label){
+ try{var copy=u8.slice().buffer,r=decodeBinka(copy);
+  if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(wav(r));audio.src=url;audio.play().catch(function(){});
+  info.innerHTML='<b>'+esc(label)+'</b><div class="mut">'+r.sampleRate+' Hz / '+(r.channels===2?'ステレオ':r.channels+'ch')+' / '+fmt(r.length/r.sampleRate)+'</div>';return true}
+ catch(e){info.innerHTML='<span class="err">再生できませんでした：'+esc(e.message)+'</span>';return false}}
+function refreshSel(){
+ [].forEach.call(document.querySelectorAll('.it'),function(e){e.classList.toggle('on',+e.dataset.i===cur)});
+ if(cur<0)return;var it=items[cur],c=cap(cur);
+ rinfo.innerHTML='選択中: <b>'+esc(it.name)+'</b><br><span class="mut">現在 '+it.size+' B ／ 差し替え上限 '+(c===null?'制限なし(末尾)':c+' B')+(reps[cur]?' ／ <span class="rp">差し替え済み '+reps[cur].length+' B</span>':'')+'</span>';
+ document.getElementById('undo').disabled=!reps[cur]}
+function render(){
+ var k=q.value.toLowerCase(),h=[],n=0;
+ items.forEach(function(it,i){if(k&&it.name.toLowerCase().indexOf(k)<0)return;n++;
+  if(n<=400)h.push('<div class="it'+(i===cur?' on':'')+'" data-i="'+i+'"><span class="n">'+esc(it.name)+(reps[i]?' <span class="rp">●差替</span>':'')+'</span><span class="s">'+((reps[i]?reps[i].length:it.size)/1024).toFixed(1)+' KB</span></div>')});
+ list.innerHTML=h.join('');cnt.textContent=n+' 件'+(n>400?'（先頭400件。検索で絞り込み）':'');
+ var rc=Object.keys(reps).length;exp.disabled=!rc;exp.textContent='書き出し（差し替え '+rc+' 件）'}
+function build(){
+ out.innerHTML='<div class="card" id="player"><div id="info" class="mut">曲を選んでください</div><audio id="au" controls></audio></div>'
+ +'<div class="card"><div id="rinfo" class="mut">一覧から項目を選択</div>'
+ +'<label class="btn">.binkaで差し替え<input id="rf" type="file" hidden></label><button class="sec" id="undo" disabled>差し替えを取り消す</button><button class="sec" id="orig">元の音を再生</button><div id="msg" class="err"></div></div>'
+ +'<div class="card"><input type="search" id="q" placeholder="検索（例: cave, damage）"><div class="mut" id="cnt" style="margin-top:6px"></div><div id="list"></div></div>'
+ +'<div class="card"><button id="exp" disabled>書き出し</button><div class="mut">差し替えた.msscmpをダウンロードします。元のファイルは変更されません。</div></div>';
+ audio=document.getElementById('au');info=document.getElementById('info');list=document.getElementById('list');q=document.getElementById('q');cnt=document.getElementById('cnt');rinfo=document.getElementById('rinfo');exp=document.getElementById('exp');msg=document.getElementById('msg');
+ q.addEventListener('input',render);
+ list.addEventListener('click',function(e){var t=e.target.closest('.it');if(!t)return;cur=+t.dataset.i;msg.textContent='';playBytes(bytesOf(cur),items[cur].name+(reps[cur]?'（差し替え後）':''));refreshSel()});
+ document.getElementById('orig').addEventListener('click',function(){if(cur>=0)playBytes(new Uint8Array(bank,items[cur].off,items[cur].size),items[cur].name+'（元）')});
+ document.getElementById('undo').addEventListener('click',function(){delete reps[cur];render();refreshSel();msg.textContent=''});
+ document.getElementById('rf').addEventListener('change',function(ev){
+  var f=ev.target.files[0];ev.target.value='';if(!f||cur<0){if(cur<0)msg.textContent='先に一覧から項目を選んでください';return}
+  var rd=new FileReader();rd.onload=function(){
+   var u8=new Uint8Array(rd.result);msg.textContent='';
+   if(String.fromCharCode(u8[0],u8[1],u8[2],u8[3])!=='1FCB'){msg.textContent='1FCB形式の.binkaではありません';return}
+   var t=patchBank(bank,items,[{idx:cur,data:u8}]);
+   if(t.errors.length){msg.textContent=t.errors[0];return}
+   try{decodeBinka(u8.slice().buffer)}catch(e){msg.textContent='デコードできません: '+e.message;return}
+   reps[cur]=u8;playBytes(u8,items[cur].name+'（差し替え後）');render();refreshSel()};
+  rd.readAsArrayBuffer(f)});
+ exp.addEventListener('click',function(){
+  var arr=Object.keys(reps).map(function(k){return{idx:+k,data:reps[k]}}),r=patchBank(bank,items,arr);
+  if(r.errors.length){msg.textContent=r.errors.join(' / ');return}
+  var u=URL.createObjectURL(new Blob([r.buf])),a=document.createElement('a');
+  a.href=u;a.download=bankName.replace(/\.msscmp$/i,'')+'_edited.msscmp';document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u)},5000)});
+ render()}
+function handle(f){
+ if(!f)return;out.innerHTML='<div class="card mut">読み込み中…</div>';
+ var rd=new FileReader();
+ rd.onload=function(){setTimeout(function(){
+  try{bank=rd.result;bankName=f.name;items=parseBank(bank);reps={};cur=-1;
+   if(!items.length)throw new Error('.binkaが見つかりません');build()}
+  catch(e){out.innerHTML='<div class="card err">'+esc(e.message)+'</div>'}},30)};
+ rd.onerror=function(){out.innerHTML='<div class="card err">読み込みに失敗しました</div>'};
+ rd.readAsArrayBuffer(f)}
+inp.addEventListener('change',function(){handle(inp.files[0])});
+['dragenter','dragover'].forEach(function(e){drop.addEventListener(e,function(ev){ev.preventDefault();drop.classList.add('over')})});
+['dragleave','drop'].forEach(function(e){drop.addEventListener(e,function(ev){ev.preventDefault();drop.classList.remove('over')})});
+drop.addEventListener('drop',function(ev){handle(ev.dataTransfer.files[0])});
+})();
+</script></body></html>
