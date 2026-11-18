@@ -43,18 +43,18 @@ function wav(r){
  s(36,'data');v.setUint32(40,len,true);
  var o=44;for(var i=0;i<n;i++)for(var c=0;c<ch;c++){var x=Math.max(-1,Math.min(1,r.data[c][i]));v.setInt16(o,x<0?x*32768:x*32767,true);o+=2}
  return new Blob([b],{type:'audio/wav'})}
-function show(f,r,blob,name){
+function show(f,r,blob,name,ap){
  if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(blob);
- audio.src=url;audio.play().catch(function(){});
+ audio.preload='auto';audio.src=url;if(ap)audio.play().catch(function(){});
  info.innerHTML='<b>'+esc(name)+'</b><div class="mut">'+r.sampleRate+' Hz / '+(r.channels===2?'ステレオ':r.channels+'ch')+' / '+fmt(r.length/r.sampleRate)+'</div>';
  dl.href=url;dl.download=name.split('/').pop()+'.wav';dl.style.display='inline-block'}
-function play(i){
+function play(i,ap){
  var it=items[i];cur=i;
  [].forEach.call(document.querySelectorAll('.it'),function(e){e.classList.toggle('on',+e.dataset.i===i)});
- try{var r=decodeBinka(bank.slice(it.off,it.off+it.size));show(null,r,wav(r),it.name)}
+ try{var r=decodeBinka(bank.slice(it.off,it.off+it.size));show(null,r,wav(r),it.name,ap)}
  catch(e){info.innerHTML='<span class="err">再生できませんでした：'+esc(e.message)+'</span>'}}
 function build(){
- out.innerHTML='<div class="card" id="player"><div id="info" class="mut">曲を選んでください</div><audio id="au" controls></audio><a id="dl" class="btn" style="display:none">WAVで保存</a></div>'
+ out.innerHTML='<div class="card" id="player"><div id="info" class="mut">曲を選んでください</div><audio id="au" controls></audio><a id="dl" class="btn" style="display:none">WAVで保存</a><div><label class="mut"><input type="checkbox" id="seq"> 終わったら次の曲を連続再生</label></div></div>'
   +'<div class="card"><input type="search" id="q" placeholder="検索（例: cave, damage, music）"><div class="mut" id="cnt" style="margin-top:6px"></div><div id="list"></div></div>';
  audio=document.getElementById('au');info=document.getElementById('info');dl=document.getElementById('dl');
  var list=document.getElementById('list'),q=document.getElementById('q'),cnt=document.getElementById('cnt');
@@ -64,8 +64,8 @@ function build(){
    if(n<=400)h.push('<div class="it" data-i="'+i+'"><span class="n">'+esc(it.name)+'</span><span class="s">'+(it.size/1024).toFixed(0)+' KB</span></div>')});
   list.innerHTML=h.join('');cnt.textContent=n+' 件'+(n>400?'（先頭400件を表示。検索で絞り込み）':'')}
  q.addEventListener('input',render);
- list.addEventListener('click',function(e){var t=e.target.closest('.it');if(t)play(+t.dataset.i)});
- audio.addEventListener('ended',function(){var k=q.value.toLowerCase();for(var i=cur+1;i<items.length;i++){if(!k||items[i].name.toLowerCase().indexOf(k)>=0){play(i);break}}});
+ list.addEventListener('click',function(e){var t=e.target.closest('.it');if(t)play(+t.dataset.i,false)});
+ audio.addEventListener('ended',function(){if(!document.getElementById('seq').checked)return;var k=q.value.toLowerCase();for(var i=cur+1;i<items.length;i++){if(!k||items[i].name.toLowerCase().indexOf(k)>=0){play(i,true);break}}});
  render()}
 function handle(f){
  if(!f)return;
