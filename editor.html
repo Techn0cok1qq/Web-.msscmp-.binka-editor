@@ -30,8 +30,8 @@ button:disabled{opacity:.4}
 <label id="drop"><b>ここに .msscmp をドロップ</b><span>またはタップして選択（リトルエンディアン形式 "KNAB"）</span><input id="file" type="file" hidden></label>
 <div id="out"></div>
 </main>
-<script src="js/binka.js"></script>
-<script src="js/msscmp.js"></script>
+<script src="binka.js"></script>
+<script src="msscmp.js"></script>
 <script>
 (function(){
 var drop=document.getElementById('drop'),inp=document.getElementById('file'),out=document.getElementById('out');
@@ -56,7 +56,7 @@ function playBytes(u8,label){
 function refreshSel(){
  [].forEach.call(document.querySelectorAll('.it'),function(e){e.classList.toggle('on',+e.dataset.i===cur)});
  if(cur<0)return;var it=items[cur],c=cap(cur);
- rinfo.innerHTML='選択中: <b>'+esc(it.name)+'</b><br><span class="mut">現在 '+it.size+' B ／ 差し替え上限 '+(c===null?'制限なし(末尾)':c+' B')+(reps[cur]?' ／ <span class="rp">差し替え済み '+reps[cur].length+' B</span>':'')+'</span>';
+ rinfo.innerHTML='選択中: <b>'+esc(it.name)+'</b><br><span class="mut">現在 '+it.size+' B ／ 元の枠 '+(c===null?'制限なし(末尾)':c+' B（超えたらバンク末尾に追記）')+(reps[cur]?' ／ <span class="rp">差し替え済み '+reps[cur].length+' B</span>':'')+'</span>';
  document.getElementById('undo').disabled=!reps[cur]}
 function render(){
  var k=q.value.toLowerCase(),h=[],n=0;
