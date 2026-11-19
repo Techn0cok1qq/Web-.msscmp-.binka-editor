@@ -30,6 +30,7 @@ button:disabled{opacity:.4}
 <label id="drop"><b>ここに .msscmp をドロップ</b><span>またはタップして選択（リトルエンディアン形式 "KNAB"）</span><input id="file" type="file" hidden></label>
 <div id="out"></div>
 </main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="js/binka.js"></script>
 <script src="js/msscmp.js"></script>
 <script>
@@ -74,7 +75,8 @@ function build(){
  out.innerHTML='<div class="card" id="player"><div id="info" class="mut">曲を選んでください</div><audio id="au" controls></audio></div>'
  +'<div class="card"><div id="rinfo" class="mut">一覧から項目を選択</div>'
  +'<label class="btn">.binkaで差し替え<input id="rf" type="file" hidden></label><button class="sec" id="undo" disabled>差し替えを取り消す</button><button class="sec" id="orig">元の音を再生</button><div id="msg" class="err"></div></div>'
- +'<div class="card"><input type="search" id="q" placeholder="検索（例: cave, damage）"><div class="mut" id="cnt" style="margin-top:6px"></div><div id="list"></div><div id="pg" style="margin-top:10px;text-align:center"></div></div>'
+ +'<div class="card"><label class="btn">zip／複数.binkaで一括差し替え<input id="bf" type="file" multiple accept=".zip,.binka" hidden></label><div class="mut" style="margin-top:6px">同じ名前の項目を自動で差し替えます（例: hit4.binka → .../villager/hit4）。フォルダ付きなら名前の末尾が一致する項目だけ対象です。</div><div id="bmsg" class="mut"></div></div>'
++'<div class="card"><input type="search" id="q" placeholder="検索（例: cave, damage）"><div class="mut" id="cnt" style="margin-top:6px"></div><div id="list"></div><div id="pg" style="margin-top:10px;text-align:center"></div></div>'
  +'<div class="card"><button id="exp" disabled>書き出し</button><div class="mut">差し替えた.msscmpをダウンロードします。元のファイルは変更されません。</div></div>';
  audio=document.getElementById('au');info=document.getElementById('info');list=document.getElementById('list');q=document.getElementById('q');cnt=document.getElementById('cnt');rinfo=document.getElementById('rinfo');exp=document.getElementById('exp');msg=document.getElementById('msg');
  q.addEventListener('input',function(){page=0;render()});
@@ -82,7 +84,28 @@ function build(){
  list.addEventListener('click',function(e){var t=e.target.closest('.it');if(!t)return;cur=+t.dataset.i;msg.textContent='';playBytes(bytesOf(cur),items[cur].name+(reps[cur]?'（差し替え後）':''));refreshSel()});
  document.getElementById('orig').addEventListener('click',function(){if(cur>=0)playBytes(new Uint8Array(bank,items[cur].off,items[cur].size),items[cur].name+'（元）')});
  document.getElementById('undo').addEventListener('click',function(){delete reps[cur];render();refreshSel();msg.textContent=''});
- document.getElementById('rf').addEventListener('change',function(ev){
+  document.getElementById('bf').addEventListener('change',async function(ev){
+  var files=Array.from(ev.target.files);ev.target.value='';var bm=document.getElementById('bmsg');
+  bm.textContent='読み込み中…';var ents=[];
+  try{for(var f of files){
+   if(/\.zip$/i.test(f.name)){var z=await JSZip.loadAsync(f);
+    for(var n in z.files){var e=z.files[n];if(!e.dir&&/\.binka$/i.test(n)&&n.indexOf('__MACOSX')<0)ents.push({p:n,get:e.async.bind(e,'uint8array')})}}
+   else if(/\.binka$/i.test(f.name))ents.push({p:f.name,get:(function(ff){return function(){return ff.arrayBuffer().then(function(b){return new Uint8Array(b)})}})(f)})}
+  }catch(e){bm.textContent='読み込み失敗: '+e.message;return}
+  var ln=items.map(function(it){return it.name.toLowerCase()}),ok=0,none=[],amb=[],bad=[];
+  for(var en of ents){
+   var p=en.p.replace(/\\/g,'/').replace(/^\.?\//,'').replace(/\.binka$/i,'').toLowerCase(),c=[];
+   ln.forEach(function(nm,i){if(nm===p||nm.endsWith('/'+p))c.push(i)});
+   var ex=c.filter(function(i){return ln[i]===p});if(ex.length===1)c=ex;
+   if(!c.length){none.push(en.p);continue}
+   if(c.length>1){amb.push(en.p+'（'+c.length+'件）');continue}
+   var u8=await en.get();
+   if(String.fromCharCode(u8[0],u8[1],u8[2],u8[3])!=='1FCB'){bad.push(en.p);continue}
+   reps[c[0]]=u8;ok++}
+  render();if(cur>=0)refreshSel();
+  var sh=function(a){return a.slice(0,8).join(', ')+(a.length>8?' ほか'+(a.length-8)+'件':'')};
+  bm.innerHTML='差し替え '+ok+' 件'+(none.length?'<br>一致なし '+none.length+' 件: '+esc(sh(none)):'')+(amb.length?'<br>複数候補で未適用 '+amb.length+' 件（フォルダ付きの名前にしてください）: '+esc(sh(amb)):'')+(bad.length?'<br>形式エラー '+bad.length+' 件: '+esc(sh(bad)):'')});
+document.getElementById('rf').addEventListener('change',function(ev){
   var f=ev.target.files[0];ev.target.value='';if(!f||cur<0){if(cur<0)msg.textContent='先に一覧から項目を選んでください';return}
   var rd=new FileReader();rd.onload=function(){
    var u8=new Uint8Array(rd.result);msg.textContent='';
