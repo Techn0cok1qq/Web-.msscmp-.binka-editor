@@ -33,7 +33,7 @@ var AUD=/\.(mp3|wav|ogg|m4a|aac|flac|opus|webm)$/i;
 async function expand(files){var out=[];
  for(var f of files){
   if(/\.zip$/i.test(f.name)){var z=await JSZip.loadAsync(f);
-   for(var n in z.files){var e=z.files[n];if(!e.dir&&AUD.test(n)&&n.indexOf('__MACOSX')<0)out.push({name:n.split('/').pop(),buf:await e.async('arraybuffer')})}}
+   for(var n in z.files){var e=z.files[n];if(!e.dir&&AUD.test(n)&&n.indexOf('__MACOSX')<0)out.push({name:n.replace(/\\/g,'/'),buf:await e.async('arraybuffer')})}}
   else out.push({name:f.name,buf:await f.arrayBuffer()})}
  return out}
 async function conv(it){
@@ -57,7 +57,7 @@ async function run(files){
   await new Promise(function(r){setTimeout(r,20)});
   try{var r=await conv(it),name=it.name.replace(/\.[^.]+$/,'')+'.binka';
    done.push({name:name,buf:r.buf});
-   var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([r.buf]));a.download=name;a.textContent='保存';
+   var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([r.buf]));a.download=name.split('/').pop();a.textContent='保存';
    div.textContent=name+'  '+r.rate+'Hz / '+(r.ch===1?'モノ':'ステレオ')+' / '+r.sec.toFixed(2)+'秒 / '+r.buf.byteLength+' B  ';div.appendChild(a)}
   catch(e){div.innerHTML=it.name+' <span class="err">失敗: '+(e.message||'対応していない形式')+'</span>'}}
  $('msg').textContent='完了';$('zipb').hidden=!done.length}
