@@ -1,0 +1,66 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>.binka 変換</title>
+<style>
+:root{color-scheme:dark}body{margin:0;padding:20px;background:#14161a;color:#e6e8ec;font:16px/1.6 -apple-system,sans-serif;max-width:720px;margin:auto}
+h1{font-size:24px}.drop{border:2px dashed #3a4050;border-radius:16px;padding:28px 16px;text-align:center;background:#1c1f26;cursor:pointer}
+.row{display:flex;flex-wrap:wrap;gap:12px;margin:14px 0}label{display:flex;flex-direction:column;font-size:13px;color:#9aa3b2;gap:4px}
+select,input[type=number]{background:#14161a;color:#e6e8ec;border:1px solid #3a4050;border-radius:8px;padding:8px;font-size:16px;width:150px}
+button{background:#6d8cf7;color:#fff;border:0;border-radius:10px;padding:10px 16px;font-size:16px;margin:4px 6px 4px 0}
+button.s{background:none;border:1px solid #6d8cf7;color:#6d8cf7}.it{padding:8px 0;border-top:1px solid #2a2f3a;font-size:14px}.err{color:#e5534b}
+a{color:#8fb0ff}
+</style></head><body>
+<h1>🎵 .binka 変換</h1>
+<p>mp3 / wav / ogg など（zipに入れたものも可）を .binka に変換します。すべてブラウザ内で処理します。</p>
+<div class="drop" id="drop">ここにドロップ、またはタップして選択<br><small>複数OK・zipOK</small></div>
+<input id="file" type="file" multiple accept="audio/*,.zip,.ogg,.mp3,.wav,.m4a,.flac" hidden>
+<div class="row">
+<label>サンプルレート<select id="sr"><option value="22050">22050 Hz</option><option value="32000">32000 Hz</option><option value="44100">44100 Hz</option><option value="48000">48000 Hz</option></select></label>
+<label>チャンネル<select id="ch"><option value="1">モノラル</option><option value="2">ステレオ</option></select></label>
+<label>音質<select id="q"><option value="24">小さめ</option><option value="32" selected>標準</option><option value="40">高</option></select></label>
+<label>最大秒数(空=切らない)<input id="mx" type="number" min="0.05" step="0.05"></label>
+</div>
+<div id="msg"></div><div id="list"></div>
+<button id="zipb" class="s" hidden>ZIPで全部保存</button>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/binka-encoder.js"></script>
+<script>
+var $=function(i){return document.getElementById(i)},done=[];
+$('drop').onclick=function(){$('file').click()};
+$('drop').ondragover=function(e){e.preventDefault()};
+$('drop').ondrop=function(e){e.preventDefault();run(e.dataTransfer.files)};
+$('file').onchange=function(){run(this.files);this.value=''};
+var AUD=/\.(mp3|wav|ogg|m4a|aac|flac|opus|webm)$/i;
+async function expand(files){var out=[];
+ for(var f of files){
+  if(/\.zip$/i.test(f.name)){var z=await JSZip.loadAsync(f);
+   for(var n in z.files){var e=z.files[n];if(!e.dir&&AUD.test(n)&&n.indexOf('__MACOSX')<0)out.push({name:n.split('/').pop(),buf:await e.async('arraybuffer')})}}
+  else out.push({name:f.name,buf:await f.arrayBuffer()})}
+ return out}
+async function conv(it){
+ var sr=+$('sr').value,ch=+$('ch').value,snr=+$('q').value,mx=parseFloat($('mx').value);
+ var ctx=new (window.AudioContext||window.webkitAudioContext)({sampleRate:sr});
+ var ab=await ctx.decodeAudioData(it.buf);ctx.close&&ctx.close();
+ var n=ab.length,rate=ab.sampleRate;
+ if(mx>0)n=Math.min(n,Math.round(mx*rate));
+ var chans=[];
+ if(ch===1){var m=new Float32Array(n),k=ab.numberOfChannels;
+  for(var c=0;c<k;c++){var d=ab.getChannelData(c);for(var i=0;i<n;i++)m[i]+=d[i]/k}chans=[m]}
+ else{for(var c=0;c<2;c++)chans.push(ab.getChannelData(Math.min(c,ab.numberOfChannels-1)).slice(0,n))}
+ return{buf:encodeBinka(chans,rate,{snrDb:snr}),rate:rate,ch:ch,sec:n/rate}}
+async function run(files){
+ var arr=[];$('msg').textContent='読み込み中…';
+ try{arr=await expand(files)}catch(e){$('msg').innerHTML='<span class="err">読み込み失敗: '+e.message+'</span>';return}
+ if(!arr.length){$('msg').innerHTML='<span class="err">音声ファイルがありません</span>';return}
+ for(var i=0;i<arr.length;i++){
+  var it=arr[i],div=document.createElement('div');div.className='it';$('list').appendChild(div);
+  $('msg').textContent='変換中 '+(i+1)+'/'+arr.length;div.textContent=it.name+' …';
+  await new Promise(function(r){setTimeout(r,20)});
+  try{var r=await conv(it),name=it.name.replace(/\.[^.]+$/,'')+'.binka';
+   done.push({name:name,buf:r.buf});
+   var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([r.buf]));a.download=name;a.textContent='保存';
+   div.textContent=name+'  '+r.rate+'Hz / '+(r.ch===1?'モノ':'ステレオ')+' / '+r.sec.toFixed(2)+'秒 / '+r.buf.byteLength+' B  ';div.appendChild(a)}
+  catch(e){div.innerHTML=it.name+' <span class="err">失敗: '+(e.message||'対応していない形式')+'</span>'}}
+ $('msg').textContent='完了';$('zipb').hidden=!done.length}
+$('zipb').onclick=async function(){var z=new JSZip();done.forEach(function(d){z.file(d.name,d.buf)});
+ var b=await z.generateAsync({type:'blob'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='binka.zip';a.click()};
+</script></body></html>
