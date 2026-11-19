@@ -60,17 +60,18 @@ function refreshSel(){
  rinfo.innerHTML='選択中: <b>'+esc(it.name)+'</b><br><span class="mut">現在 '+it.size+' B ／ 元の枠 '+(c===null?'制限なし(末尾)':c+' B（超えたらバンク末尾に追記）')+(reps[cur]?' ／ <span class="rp">差し替え済み '+reps[cur].length+' B</span>':'')+'</span>';
  document.getElementById('undo').disabled=!reps[cur]}
 var page=0,PS=300;
+function fits(i){var it=items[i],d=reps[i],p=String(it.size).length,sz=Math.max(d.length,Math.pow(10,p-1)),c=cap(i);return String(sz).length===p&&(c===null||sz<=c)}
 function render(){
  var k=q.value.toLowerCase(),idx=[];
  items.forEach(function(it,i){if(!k||it.name.toLowerCase().indexOf(k)>=0)idx.push(i)});
  var n=idx.length,pages=Math.max(1,Math.ceil(n/PS));if(page>=pages)page=pages-1;if(page<0)page=0;
  var h=idx.slice(page*PS,page*PS+PS).map(function(i){var it=items[i];
-  return '<div class="it'+(i===cur?' on':'')+'" data-i="'+i+'"><span class="n">'+esc(it.name)+(reps[i]?' <span class="rp">●差替</span>':'')+'</span><span class="s">'+((reps[i]?reps[i].length:it.size)/1024).toFixed(1)+' KB</span></div>'});
+  return '<div class="it'+(i===cur?' on':'')+'" data-i="'+i+'"><span class="n">'+esc(it.name)+(reps[i]?(fits(i)?' <span class="rp">●差替</span>':' <span class="rp" style="color:#e5a23b">⚠枠超え</span>'):'')+'</span><span class="s">'+((reps[i]?reps[i].length:it.size)/1024).toFixed(1)+' KB</span></div>'});
  list.innerHTML=h.join('');
  cnt.textContent=n+' 件（'+(n?page*PS+1:0)+'〜'+Math.min(n,page*PS+PS)+' 件目を表示）';
  var pg=document.getElementById('pg');
  pg.innerHTML=pages>1?'<button class="sec" id="pp"'+(page?'':' disabled')+'>◀ 前</button> <span class="mut">'+(page+1)+' / '+pages+' ページ</span> <button class="sec" id="pn"'+(page<pages-1?'':' disabled')+'>次 ▶</button>':'';
- var rc=Object.keys(reps).length;exp.disabled=!rc;exp.textContent='書き出し（差し替え '+rc+' 件）'}
+ var rk=Object.keys(reps),rc=rk.length,ov=rk.filter(function(k){return !fits(+k)}).length;exp.disabled=!rc;exp.textContent='書き出し（差し替え '+rc+' 件'+(ov?'／⚠枠超え '+ov+' 件':'')+'）'}
 function build(){
  out.innerHTML='<div class="card" id="player"><div id="info" class="mut">曲を選んでください</div><audio id="au" controls></audio></div>'
  +'<div class="card"><div id="rinfo" class="mut">一覧から項目を選択</div>'
