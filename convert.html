@@ -9,7 +9,7 @@ button{background:#6d8cf7;color:#fff;border:0;border-radius:10px;padding:10px 16
 button.s{background:none;border:1px solid #6d8cf7;color:#6d8cf7}.it{padding:8px 0;border-top:1px solid #2a2f3a;font-size:14px}.err{color:#e5534b}
 a{color:#8fb0ff}
 </style></head><body>
-<h1>🎵 .binka 変換</h1>
+<h1>🎵 .binka 変換 <small style="font-size:13px;color:#9aa3b2">v3 フォルダ維持・sounds/以降</small></h1>
 <p>mp3 / wav / ogg など（zipに入れたものも可）を .binka に変換します。すべてブラウザ内で処理します。</p>
 <div class="drop" id="drop">ここにドロップ、またはタップして選択<br><small>複数OK・zipOK</small></div>
 <input id="file" type="file" multiple accept="audio/*,.zip,.ogg,.mp3,.wav,.m4a,.flac" hidden>
@@ -30,10 +30,11 @@ $('drop').ondragover=function(e){e.preventDefault()};
 $('drop').ondrop=function(e){e.preventDefault();run(e.dataTransfer.files)};
 $('file').onchange=function(){run(this.files);this.value=''};
 var AUD=/\.(mp3|wav|ogg|m4a|aac|flac|opus|webm)$/i;
+function cut(n){var l=n.toLowerCase(),i=l.indexOf('sounds/');while(i>0&&l[i-1]!=='/')i=l.indexOf('sounds/',i+1);return i>=0?n.slice(i+7):n}
 async function expand(files){var out=[];
  for(var f of files){
   if(/\.zip$/i.test(f.name)){var z=await JSZip.loadAsync(f);
-   for(var n in z.files){var e=z.files[n];if(!e.dir&&AUD.test(n)&&n.indexOf('__MACOSX')<0)out.push({name:n.replace(/\\/g,'/'),buf:await e.async('arraybuffer')})}}
+   for(var n in z.files){var e=z.files[n];if(!e.dir&&AUD.test(n)&&n.indexOf('__MACOSX')<0)out.push({name:cut(n.replace(/\\/g,'/')),buf:await e.async('arraybuffer')})}}
   else out.push({name:f.name,buf:await f.arrayBuffer()})}
  return out}
 async function conv(it){
