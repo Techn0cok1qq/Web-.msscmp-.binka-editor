@@ -61,8 +61,8 @@ function build(){
  function render(){
   var k=q.value.toLowerCase(),h=[],n=0;
   items.forEach(function(it,i){if(k&&it.name.toLowerCase().indexOf(k)<0)return;n++;
-   if(n<=400)h.push('<div class="it" data-i="'+i+'"><span class="n">'+esc(it.name)+'</span><span class="s">'+(it.size/1024).toFixed(0)+' KB</span></div>')});
-  list.innerHTML=h.join('');cnt.textContent=n+' 件'+(n>400?'（先頭400件を表示。検索で絞り込み）':'')}
+   h.push('<div class="it" data-i="'+i+'"><span class="n">'+esc(it.name)+'</span><span class="s">'+(it.size/1024).toFixed(0)+' KB</span></div>')});
+  list.innerHTML=h.join('');cnt.textContent=n+' 件'}
  q.addEventListener('input',render);
  list.addEventListener('click',function(e){var t=e.target.closest('.it');if(t)play(+t.dataset.i)});
   render()}
